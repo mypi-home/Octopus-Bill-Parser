@@ -16,10 +16,17 @@
 
 import re
 from datetime import datetime
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 import pandas as pd
 import PyPDF2
 import os
 import glob
+
+# Define the timezone for all dates and times ("Europe/London")
+meterTimezoneString = "Europe/London"
 
 # Define a helper function to remove ordinal suffixes from day numbers in dates
 def remove_ordinal_suffix(s):
@@ -96,7 +103,7 @@ def create_timestamps(row):
     end_time_str = period_parts[1].strip()
     
     # Create start datetime
-    start_dt = datetime.combine(row['Date'], datetime.strptime(start_time_str, '%H:%M').time())
+    start_dt = datetime.combine(row['Date'], datetime.strptime(start_time_str, '%H:%M').time(), tzinfo=zoneinfo.ZoneInfo(meterTimezoneString)).replace(fold=row['FoldStart'])
     
     # Create end datetime - handle midnight crossing
     start_hour = int(start_time_str.split(':')[0])
@@ -107,9 +114,9 @@ def create_timestamps(row):
     else:
         end_date = row['Date']
     
-    end_dt = datetime.combine(end_date, datetime.strptime(end_time_str, '%H:%M').time())
+    end_dt = datetime.combine(end_date, datetime.strptime(end_time_str, '%H:%M').time(), tzinfo=zoneinfo.ZoneInfo(meterTimezoneString)).replace(fold=row['FoldEnd'])
     
-    return pd.Series([start_dt.strftime('%Y-%m-%dT%H:%M:00'), end_dt.strftime('%Y-%m-%dT%H:%M:00')])
+    return pd.Series([start_dt.isoformat(), end_dt.isoformat(), start_dt])
 
 # After creating the DataFrame, set display options
 pd.set_option('display.max_columns', None)
@@ -118,12 +125,20 @@ pd.set_option('display.expand_frame_repr', False)
 # Create a DataFrame with all the consolidated data
 df = pd.DataFrame(all_data_rows)
 
+# Check which value of fold we need to use - by looking for cases where the current row time (start or end) is the same value as two rows back
+# Add a column for each
+# True means this 'wall time' is the second time we have seen this value, so the time stamp needs to be set to the later occurence
+df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[0:5]
+df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[8:13]
+
 # Add Start and End timestamp columns
-df[['Start', 'End']] = df.apply(create_timestamps, axis=1)
-df = df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']]
+df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
 
 # Sort by Start timestamp to ensure chronological order
-df = df.sort_values('Start')
+df = df.sort_values('StartTimestamp')
+
+# Reduce columns to only those that are needed for export
+df = df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']]
 
 # Define a helper function to determine if the period starts during the off-peak window (23:30 - 05:30)
 def is_offpeak(period_str):
