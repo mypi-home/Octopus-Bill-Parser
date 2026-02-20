@@ -16,10 +16,17 @@
 
 import re
 from datetime import datetime
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 import pandas as pd
 import PyPDF2
 import os
 import glob
+
+# Define the timezone for all dates and times ("Europe/London")
+meter_timezone_string = "Europe/London"
 
 # Define a helper function to remove ordinal suffixes from day numbers in dates
 def remove_ordinal_suffix(s):
@@ -96,7 +103,7 @@ def create_timestamps(row):
     end_time_str = period_parts[1].strip()
     
     # Create start datetime
-    start_dt = datetime.combine(row['Date'], datetime.strptime(start_time_str, '%H:%M').time())
+    start_dt = datetime.combine(row['Date'], datetime.strptime(start_time_str, '%H:%M').time(), tzinfo=zoneinfo.ZoneInfo(meter_timezone_string)).replace(fold=row['FoldStart'])
     
     # Create end datetime - handle midnight crossing
     start_hour = int(start_time_str.split(':')[0])
@@ -107,9 +114,9 @@ def create_timestamps(row):
     else:
         end_date = row['Date']
     
-    end_dt = datetime.combine(end_date, datetime.strptime(end_time_str, '%H:%M').time())
+    end_dt = datetime.combine(end_date, datetime.strptime(end_time_str, '%H:%M').time(), tzinfo=zoneinfo.ZoneInfo(meter_timezone_string)).replace(fold=row['FoldEnd'])
     
-    return pd.Series([start_dt.strftime('%Y-%m-%dT%H:%M:00'), end_dt.strftime('%Y-%m-%dT%H:%M:00')])
+    return pd.Series([start_dt.isoformat(), end_dt.isoformat(), start_dt])
 
 # After creating the DataFrame, set display options
 pd.set_option('display.max_columns', None)
@@ -118,12 +125,29 @@ pd.set_option('display.expand_frame_repr', False)
 # Create a DataFrame with all the consolidated data
 df = pd.DataFrame(all_data_rows)
 
-# Add Start and End timestamp columns
-df[['Start', 'End']] = df.apply(create_timestamps, axis=1)
-df = df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']]
+#If the DataFrame is empty then there is nothing to process - and later fuctions will fail. So check
+if df.empty:
+    #If empty print a message and populate dataframe with nothing - so export will work
+    print("No half-hourly rows found.")
+    df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']] = None
+else:
+    # Check which value of fold we need to use - by looking for cases where the current row time (start or end) is the same value as two rows back
+    # Add a column for each
+    # True means this 'wall time' is the second time we have seen this value, so the time stamp needs to be set to the later occurrence
+    df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[:5]
+    df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[-5:]
 
-# Sort by Start timestamp to ensure chronological order
-df = df.sort_values('Start')
+    # Add Start and End timestamp columns
+    df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
+
+    # Convert the rate column to a number
+    df['Rate'] = df['Rate'].astype(float)
+
+    # Sort by Start timestamp to ensure chronological order
+    df = df.sort_values('StartTimestamp')
+
+# Reduce columns to only those that are needed for export
+df = df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']]
 
 # Define a helper function to determine if the period starts during the off-peak window (23:30 - 05:30)
 def is_offpeak(period_str):
@@ -136,8 +160,9 @@ def is_offpeak(period_str):
     return (start_time >= offpeak_start) or (start_time < offpeak_end)
 
 # Filter the DataFrame:
-# Select rows where Rate is 6.67p and the period is NOT off-peak.
-df_filtered = df[(df['Rate'] == 6.67) & (~df['Period'].apply(is_offpeak))]
+# Select rows where Rate is 'off-peak' and the period is NOT off-peak.
+# To allow for changing rates over time, including during one bill, 'off peak' will be any rate under 8p
+df_filtered = df[(df['Rate'] < 8.0) & (~df['Period'].apply(is_offpeak))]
 
 # Export both DataFrames to CSV with absolute paths and debug output
 # Create full paths for CSV files
@@ -160,5 +185,5 @@ except Exception as e:
 # Show results with improved formatting
 print("\nConsolidated DataFrame (first few rows):")
 print(df.head().to_string(index=False))
-print("\nFiltered DataFrame (Rate = 6.67p outside off-peak 23:30-05:30):")
+print("\nFiltered DataFrame (Rate < 8.00p outside off-peak 23:30-05:30):")
 print(df_filtered.to_string(index=False))
