@@ -140,6 +140,9 @@ else:
     # Add Start and End timestamp columns
     df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
 
+    # Convert the rate column to a number
+    df['Rate'] = df['Rate'].astype(float)
+
     # Sort by Start timestamp to ensure chronological order
     df = df.sort_values('StartTimestamp')
 
@@ -157,8 +160,9 @@ def is_offpeak(period_str):
     return (start_time >= offpeak_start) or (start_time < offpeak_end)
 
 # Filter the DataFrame:
-# Select rows where Rate is 6.67p and the period is NOT off-peak.
-df_filtered = df[(df['Rate'] == 6.67) & (~df['Period'].apply(is_offpeak))]
+# Select rows where Rate is 'off-peak' and the period is NOT off-peak.
+# To allow for changing rates over time, including during one bill, 'off peak' will be any rate under 8p
+df_filtered = df[(df['Rate'] < 8.0) & (~df['Period'].apply(is_offpeak))]
 
 # Export both DataFrames to CSV with absolute paths and debug output
 # Create full paths for CSV files
@@ -181,5 +185,5 @@ except Exception as e:
 # Show results with improved formatting
 print("\nConsolidated DataFrame (first few rows):")
 print(df.head().to_string(index=False))
-print("\nFiltered DataFrame (Rate = 6.67p outside off-peak 23:30-05:30):")
+print("\nFiltered DataFrame (Rate < 8.00p outside off-peak 23:30-05:30):")
 print(df_filtered.to_string(index=False))
