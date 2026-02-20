@@ -125,17 +125,23 @@ pd.set_option('display.expand_frame_repr', False)
 # Create a DataFrame with all the consolidated data
 df = pd.DataFrame(all_data_rows)
 
-# Check which value of fold we need to use - by looking for cases where the current row time (start or end) is the same value as two rows back
-# Add a column for each
-# True means this 'wall time' is the second time we have seen this value, so the time stamp needs to be set to the later occurrence
-df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[:5]
-df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[-5:]
+#If the DataFrame is empty then there is nothing to process - and later fuctions will fail. So check
+if df.empty:
+    #If empty print a message and populate dataframe with nothing - so export will work
+    print("No half-hourly rows found.")
+    df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']] = None
+else:
+    # Check which value of fold we need to use - by looking for cases where the current row time (start or end) is the same value as two rows back
+    # Add a column for each
+    # True means this 'wall time' is the second time we have seen this value, so the time stamp needs to be set to the later occurrence
+    df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[:5]
+    df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[-5:]
 
-# Add Start and End timestamp columns
-df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
+    # Add Start and End timestamp columns
+    df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
 
-# Sort by Start timestamp to ensure chronological order
-df = df.sort_values('StartTimestamp')
+    # Sort by Start timestamp to ensure chronological order
+    df = df.sort_values('StartTimestamp')
 
 # Reduce columns to only those that are needed for export
 df = df[['Start', 'End', 'Date', 'Period', 'Rate', 'Consumption', 'Cost']]
