@@ -53,6 +53,7 @@ def process_pdf(pdf_path):
 
     # Find all date markers
     date_matches = list(re.finditer(date_pattern, all_text))
+    print(date_matches)
     
     # Process each date block
     for idx, date_match in enumerate(date_matches):
@@ -128,8 +129,8 @@ df = pd.DataFrame(all_data_rows)
 # Check which value of fold we need to use - by looking for cases where the current row time (start or end) is the same value as two rows back
 # Add a column for each
 # True means this 'wall time' is the second time we have seen this value, so the time stamp needs to be set to the later occurrence
-df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[0:5]
-df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[8:13]
+df['FoldStart'] = df.Period.str[0:5] == df.Period.shift(2,fill_value="").str[:5]
+df['FoldEnd'] = df.Period.str[8:13] == df.Period.shift(2,fill_value="").str[-5:]
 
 # Add Start and End timestamp columns
 df[['Start', 'End', 'StartTimestamp']] = df.apply(create_timestamps, axis=1)
