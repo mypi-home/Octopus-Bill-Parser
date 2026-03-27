@@ -167,7 +167,7 @@ df_filtered = df[(df['Rate'] < 8.0) & (~df['Period'].apply(is_offpeak))]
 # Export both DataFrames to CSV with absolute paths and debug output
 # Create full paths for CSV files
 all_data_path = os.path.join(script_dir, 'all_energy_data.csv')
-filtered_data_path = os.path.join(script_dir, 'filtered_energy_data.csv')
+filtered_data_path = os.path.join(script_dir, 'filtered_intelligent_slots.csv')
 
 # Export with error handling
 try:
@@ -180,7 +180,7 @@ try:
     df_filtered.to_csv(filtered_data_path, index=False)
     print(f"Filtered data exported to: {filtered_data_path}")
 except Exception as e:
-    print(f"Error saving filtered_energy_data.csv: {e}")
+    print(f"Error saving filtered_intelligent_slots.csv: {e}")
 
 # Show results with improved formatting
 print("\nConsolidated DataFrame (first few rows):")
