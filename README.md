@@ -11,7 +11,7 @@ The Octopus Energy API and website data downloads have limitations:
 - The bills contain the **complete and accurate** half-hourly consumption data
 
 This tool extracts that data directly from your PDF bills, giving you:
-- `filtered_energy_data.csv` - **Intelligent Octopus bonus slots** (off-peak rates charged outside the standard 23:30-05:30 window), which aren't exposed elsewhere
+- `filtered_intelligent_slots.csv` - **Intelligent Octopus bonus slots** (off-peak rates charged outside the standard 23:30-05:30 window), which aren't exposed elsewhere
 - `filter_by_date.py` - Exports data in the **same format as Octopus website downloads**, making it easy to fill in gaps or replace missing data
 
 ## Features
@@ -31,9 +31,14 @@ This tool extracts that data directly from your PDF bills, giving you:
    cd Octopus-Bill-Parser
    ```
 
-2. Install dependencies:
+2. Create a virtual environment:
    ```bash
-   pip install -r requirements.txt
+   python -m venv .venv
+   ```
+
+3. Install dependencies into the virtual environment:
+   ```bash
+   .venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
 ## Usage
@@ -43,14 +48,14 @@ This tool extracts that data directly from your PDF bills, giving you:
 Place your Octopus Energy PDF bills in the same directory as the script, then run:
 
 ```bash
-python bill-parser.py
+.venv\Scripts\python.exe bill-parser.py
 ```
 
 This will:
 - Process all PDF files in the directory
 - Extract half-hourly energy consumption data
 - Generate `all_energy_data.csv` with all extracted data
-- Generate `filtered_energy_data.csv` with **Intelligent Octopus bonus slots** - periods charged at off-peak rate (6.67p) outside the standard off-peak window (23:30-05:30)
+- Generate `filtered_intelligent_slots.csv` with **Intelligent Octopus bonus slots** - periods charged at off-peak rate (6.67p) outside the standard off-peak window (23:30-05:30)
 
 #### Output Columns
 
@@ -66,17 +71,23 @@ This will:
 
 ### 2. Filter by Date Range
 
-Edit the date range in `filter_by_date.py`:
+Edit the default date range in `filter_by_date.py`:
 
 ```python
 START_DATE = "15-04-2025"  # DD-MM-YYYY format
 END_DATE = "15-05-2025"    # DD-MM-YYYY format
 ```
 
-Then run:
+Then run with the defaults from the script:
 
 ```bash
-python filter_by_date.py
+.venv\Scripts\python.exe filter_by_date.py
+```
+
+Or override the dates from the command line:
+
+```bash
+.venv\Scripts\python.exe filter_by_date.py --start-date 15-04-2025 --end-date 15-05-2025
 ```
 
 This generates `filtered_by_date.csv` in the **same format as Octopus website CSV downloads**, making it easy to fill in missing data or replace incomplete records:
@@ -102,7 +113,7 @@ Processing: October_2024_Bill.pdf
 Processing: November_2024_Bill.pdf
 
 All data exported to: all_energy_data.csv
-Filtered data exported to: filtered_energy_data.csv
+Filtered data exported to: filtered_intelligent_slots.csv
 
 Consolidated DataFrame (first few rows):
                Start                 End        Date        Period  Rate  Consumption   Cost
